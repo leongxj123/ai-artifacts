@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 import {
   type CoreMessage,
   StreamingTextResponse,
@@ -6,18 +6,18 @@ import {
   streamText,
   StreamTextResult,
   tool,
-} from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+} from 'ai';
+import { Anthropic } from '@anthropic-ai/sdk';  // 导入 Anthropic 客户端
 
 import {
   runPython,
   writeToPage,
   writeToApp,
-} from '@/lib/sandbox'
-import { SandboxTemplate } from '@/lib/types'
-import { prompt as dataAnalystPrompt } from '@/lib/python-analyst-prompt'
-import { prompt as nextjsPrompt } from '@/lib/nextjs-prompt'
-import { prompt as streamlitPrompt } from '@/lib/streamlit-prompt'
+} from '@/lib/sandbox';
+import { SandboxTemplate } from '@/lib/types';
+import { prompt as dataAnalystPrompt } from '@/lib/python-analyst-prompt';
+import { prompt as nextjsPrompt } from '@/lib/nextjs-prompt';
+import { prompt as streamlitPrompt } from '@/lib/streamlit-prompt';
 
 export interface ServerMessage {
   role: 'user' | 'assistant' | 'function';
@@ -25,13 +25,17 @@ export interface ServerMessage {
 }
 
 export async function POST(req: Request) {
-  const { messages, userID, template }: { messages: CoreMessage[], userID: string, template: SandboxTemplate } = await req.json()
-  console.log('userID', userID)
-  console.log('template', template)
+  const { messages, userID, template }: { messages: CoreMessage[], userID: string, template: SandboxTemplate } = await req.json();
+  console.log('userID', userID);
+  console.log('template', template);
 
-  let data: StreamData = new StreamData()
-  let result: StreamTextResult<any>
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,  // 使用环境变量存储 API key
+    baseURL: 'https://api.2023gpt.top/v1/chat/completions', // 如果需要自定义 URL，可以在这里设置
+  });
 
+  let data: StreamData = new StreamData();
+  let result: StreamTextResult<any>;
 
   if (template === SandboxTemplate.CodeInterpreterMultilang) {
     result = await streamText({
@@ -48,32 +52,32 @@ export async function POST(req: Request) {
             data.append({
               tool: 'runPython',
               state: 'running',
-            })
+            });
 
-            const execOutput = await runPython(userID, code, template)
-            const stdout = execOutput.logs.stdout
-            const stderr = execOutput.logs.stderr
-            const runtimeError = execOutput.error
-            const results = execOutput.results
+            const execOutput = await runPython(userID, code, template);
+            const stdout = execOutput.logs.stdout;
+            const stderr = execOutput.logs.stderr;
+            const runtimeError = execOutput.error;
+            const results = execOutput.results;
 
             data.append({
               tool: 'runPython',
               state: 'complete',
-            })
+            });
 
             return {
               stdout,
               stderr,
               runtimeError,
               cellResults: results,
-            }
+            };
           },
         }),
       },
       toolChoice: 'auto',
       system: dataAnalystPrompt,
       messages,
-    })
+    });
   } else if (template === SandboxTemplate.NextJS) {
     result = await streamText({
       model: anthropic('claude-3-5-sonnet-20240620'),
@@ -89,27 +93,26 @@ export async function POST(req: Request) {
             data.append({
               tool: 'writeCodeToPageTsx',
               state: 'running',
-            })
-            console.log('WILL WRITE')
-            const { url } = await writeToPage(userID, code, template)
-            console.log('WROTE', { url })
+            });
+            console.log('WILL WRITE');
+            const { url } = await writeToPage(userID, code, template);
+            console.log('WROTE', { url });
 
             data.append({
               tool: 'writeCodeToPageTsx',
               state: 'complete',
-            })
-
+            });
 
             return {
               url,
-            }
+            };
           },
         }),
       },
       toolChoice: 'auto',
       system: nextjsPrompt,
       messages,
-    })
+    });
   } else if (template === SandboxTemplate.Streamlit) {
     result = await streamText({
       model: anthropic('claude-3-5-sonnet-20240620'),
@@ -123,32 +126,32 @@ export async function POST(req: Request) {
             data.append({
               tool: 'writeCodeToAppPy',
               state: 'running',
-            })
-            const { url } = await writeToApp(userID, code, template)
-            console.log('WROTE', { url })
+            });
+            const { url } = await writeToApp(userID, code, template);
+            console.log('WROTE', { url });
             data.append({
               tool: 'writeCodeToAppPy',
               state: 'complete',
-            })
+            });
 
             return {
               url,
-            }
+            };
           },
         }),
       },
       system: streamlitPrompt,
       messages,
-    })
+    });
   } else {
-    throw new Error('Invalid sandbox template')
+    throw new Error('Invalid sandbox template');
   }
 
   const stream = result.toAIStream({
     async onFinal() {
-      await data.close()
-    }
-  })
+      await data.close();
+    },
+  });
 
   return new StreamingTextResponse(stream, {}, data);
 }
