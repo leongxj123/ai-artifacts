@@ -7,7 +7,7 @@ import {
   StreamTextResult,
   tool,
 } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { Anthropic } from '@ai-sdk/anthropic';  // 导入 Anthropic 客户端
 
 import {
   runPython,
@@ -33,12 +33,18 @@ export async function POST(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const customURL = process.env.ANTHROPIC_API_URL || undefined; // 可选的自定义 URL
 
+  // 创建 Anthropic 实例
+  const anthropic = new Anthropic({
+    apiKey,
+    baseURL: customURL,
+  });
+
   let data: StreamData = new StreamData();
   let result: StreamTextResult<any>;
 
   if (template === SandboxTemplate.CodeInterpreterMultilang) {
     result = await streamText({
-      model: anthropic('claude-3-5-sonnet-20240620', { apiKey, baseURL: customURL }),
+      model: anthropic('claude-3-5-sonnet-20240620'),
       tools: {
         runPython: tool({
           description: 'Runs Python code.',
@@ -79,7 +85,7 @@ export async function POST(req: Request) {
     });
   } else if (template === SandboxTemplate.NextJS) {
     result = await streamText({
-      model: anthropic('claude-3-5-sonnet-20240620', { apiKey, baseURL: customURL }),
+      model: anthropic('claude-3-5-sonnet-20240620'),
       tools: {
         writeCodeToPageTsx: tool({
           description: 'Writes TSX code to the page.tsx file. You can use tailwind classes.',
@@ -114,7 +120,7 @@ export async function POST(req: Request) {
     });
   } else if (template === SandboxTemplate.Streamlit) {
     result = await streamText({
-      model: anthropic('claude-3-5-sonnet-20240620', { apiKey, baseURL: customURL }),
+      model: anthropic('claude-3-5-sonnet-20240620'),
       tools: {
         writeCodeToAppPy: tool({
           description: 'Writes Streamlit code to the app.py file.',
@@ -139,6 +145,7 @@ export async function POST(req: Request) {
           },
         }),
       },
+      toolChoice: 'auto',
       system: streamlitPrompt,
       messages,
     });
